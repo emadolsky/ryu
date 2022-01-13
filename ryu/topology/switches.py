@@ -250,6 +250,7 @@ class PortData(object):
         self.lldp_data = lldp_data
         self.timestamp = None
         self.sent = 0
+        self.delay = 0
 
     def lldp_sent(self):
         self.timestamp = time.time()
@@ -769,6 +770,7 @@ class Switches(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def lldp_packet_in_handler(self, ev):
+        recv_timestamp = time.time()
         if not self.link_discovery:
             return
 
@@ -790,6 +792,9 @@ class Switches(app_manager.RyuApp):
                       msg.datapath.ofproto.OFP_VERSION)
 
         src = self._get_port(src_dpid, src_port_no)
+        send_timestamp = self.ports[src].timestamp
+        if send_timestamp:
+            self.ports[src].delay = recv_timestamp - send_timestamp
         if not src or src.dpid == dst_dpid:
             return
         try:
