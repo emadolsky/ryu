@@ -71,15 +71,9 @@ class NetworkDelayDetector(app_manager.RyuApp):
             Delay detecting functon.
             Send echo request and calculate link delay periodically
         """
-        while CONF.weight == 'delay':
+        while True:
             self._send_echo_request()
             self.create_link_delay()
-            try:
-                self.awareness.shortest_paths = {}
-                self.logger.debug("Refresh the shortest_paths")
-            except:
-                self.awareness = lookup_service_brick('awareness')
-
             self.show_delay_statis()
             hub.sleep(setting.DELAY_DETECTING_PERIOD)
 

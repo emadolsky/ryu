@@ -17,8 +17,12 @@
 # conding=utf-8
 import logging
 import struct
+import json
 import networkx as nx
 from operator import attrgetter
+
+from networkx.algorithms.shortest_paths.generic import shortest_path
+from networkx.readwrite import json_graph
 from ryu import cfg
 from ryu.base import app_manager
 from ryu.controller import ofp_event
@@ -30,6 +34,11 @@ from ryu.lib.packet import packet
 from ryu.lib.packet import ethernet
 from ryu.lib.packet import ipv4
 from ryu.lib.packet import arp
+
+from ryu.app.wsgi import ControllerBase
+from ryu.app.wsgi import Response
+from ryu.app.wsgi import route
+from ryu.app.wsgi import WSGIApplication
 
 from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
@@ -54,7 +63,9 @@ class ShortestForwarding(app_manager.RyuApp):
     _CONTEXTS = {
         "network_awareness": network_awareness.NetworkAwareness,
         "network_monitor": network_monitor.NetworkMonitor,
-        "network_delay_detector": network_delay_detector.NetworkDelayDetector}
+        "network_delay_detector": network_delay_detector.NetworkDelayDetector,
+        "wsgi": WSGIApplication
+    }
 
     WEIGHT_MODEL = {'hop': 'weight', 'delay': "delay", "bw": "bw"}
 
@@ -66,6 +77,9 @@ class ShortestForwarding(app_manager.RyuApp):
         self.delay_detector = kwargs["network_delay_detector"]
         self.datapaths = {}
         self.weight = self.WEIGHT_MODEL[CONF.weight]
+        
+        wsgi = kwargs['wsgi']
+        wsgi.register(ShortestController, {'shortest_path_app': self})
 
     def set_weight_mode(self, weight):
         """
@@ -222,36 +236,7 @@ class ShortestForwarding(app_manager.RyuApp):
         shortest_paths = self.awareness.shortest_paths
         graph = self.awareness.graph
 
-        if weight == self.WEIGHT_MODEL['hop']:
-            return shortest_paths.get(src).get(dst)[0]
-        elif weight == self.WEIGHT_MODEL['delay']:
-            # If paths existed, return it, else calculate it and save it.
-            try:
-                paths = shortest_paths.get(src).get(dst)
-                return paths[0]
-            except:
-                paths = self.awareness.k_shortest_paths(graph, src, dst,
-                                                        weight=weight)
-
-                shortest_paths.setdefault(src, {})
-                shortest_paths[src].setdefault(dst, paths)
-                return paths[0]
-        elif weight == self.WEIGHT_MODEL['bw']:
-            # Because all paths will be calculate
-            # when call self.monitor.get_best_path_by_bw
-            # So we just need to call it once in a period,
-            # and then, we can get path directly.
-            try:
-                # if path is existed, return it.
-                path = self.monitor.best_paths.get(src).get(dst)
-                return path
-            except:
-                # else, calculate it, and return.
-                result = self.monitor.get_best_path_by_bw(graph,
-                                                          shortest_paths)
-                paths = result[1]
-                best_path = paths.get(src).get(dst)
-                return best_path
+        return shortest_paths.get(src).get(dst)[0]
 
     def get_sw(self, dpid, in_port, src, dst):
         """
@@ -387,3 +372,34 @@ class ShortestForwarding(app_manager.RyuApp):
             if len(pkt.get_protocols(ethernet.ethernet)):
                 eth_type = pkt.get_protocols(ethernet.ethernet)[0].ethertype
                 self.shortest_forwarding(msg, eth_type, ip_pkt.src, ip_pkt.dst)
+
+
+class ShortestController(ControllerBase):
+    def __init__(self, req, link, data, **config):
+        super(ShortestController, self).__init__(req, link, data, **config)
+        self.shortest_path_app = data['shortest_path_app']
+
+    @route('graph', '/v1.0/topology/graph',
+           methods=['GET'])
+    def get_graph(self, req, **kwargs):
+        g = self.shortest_path_app.awareness.graph
+        data = json_graph.node_link_data(g)
+        body = json.dumps(data)
+        return Response(content_type='application/json', body=body)
+
+    @route('shortest_path', '/v1.0/topology/shortest_path',
+        methods=['GET'])
+    def get_shortest_paths(self, req, **kwargs):
+        sp = self.shortest_path_app.awareness.shortest_paths
+        data = json.dumps(sp)
+        body = json.dumps({
+            "test": "emad"
+        })
+        return Response(content_type='application/json', body=body)
+
+    @route('set_shortest_path', '/v1.0/topology/shortest_path',
+        methods=['POST'])
+    def set_shortest_paths(self, req, **kwargs):
+        sp = json.loads(req.body, object_hook=lambda d: {int(k) if k.lstrip('-').isdigit() else k: v for k, v in d.items()})
+        self.shortest_path_app.awareness.set_shortest_paths(sp)
+        return Response(content_type='application/json')

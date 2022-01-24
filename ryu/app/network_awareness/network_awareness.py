@@ -70,13 +70,14 @@ class NetworkAwareness(app_manager.RyuApp):
         # Start a green thread to discover network resource.
         self.discover_thread = hub.spawn(self._discover)
 
+    def set_shortest_paths(self, sp):
+        self.shortest_paths = sp
+
     def _discover(self):
         i = 0
         while True:
             self.show_topology()
-            if i == 5:
-                self.get_topology(None)
-                i = 0
+            self.get_topology(None)
             hub.sleep(setting.DISCOVERY_PERIOD)
             i = i + 1
 
@@ -178,41 +179,6 @@ class NetworkAwareness(app_manager.RyuApp):
             interior_port = self.interior_ports[sw]
             self.access_ports[sw] = all_port_table - interior_port
 
-    def k_shortest_paths(self, graph, src, dst, weight='weight', k=1):
-        """
-            Great K shortest paths of src to dst.
-        """
-        generator = nx.shortest_simple_paths(graph, source=src,
-                                             target=dst, weight=weight)
-        shortest_paths = []
-        try:
-            for path in generator:
-                if k <= 0:
-                    break
-                shortest_paths.append(path)
-                k -= 1
-            return shortest_paths
-        except:
-            self.logger.debug("No path between %s and %s" % (src, dst))
-
-    def all_k_shortest_paths(self, graph, weight='weight', k=1):
-        """
-            Creat all K shortest paths between datapaths.
-        """
-        _graph = copy.deepcopy(graph)
-        paths = {}
-
-        # Find ksp in graph.
-        for src in _graph.nodes():
-            paths.setdefault(src, {src: [[src] for i in range(k)]})
-            for dst in _graph.nodes():
-                if src == dst:
-                    continue
-                paths[src].setdefault(dst, [])
-                paths[src][dst] = self.k_shortest_paths(_graph, src, dst,
-                                                        weight=weight, k=k)
-        return paths
-
     # List the event list should be listened.
     events = [event.EventSwitchEnter,
               event.EventSwitchLeave, event.EventPortAdd,
@@ -231,8 +197,6 @@ class NetworkAwareness(app_manager.RyuApp):
         self.create_interior_links(links)
         self.create_access_ports()
         self.get_graph(self.link_to_port.keys())
-        self.shortest_paths = self.all_k_shortest_paths(
-            self.graph, weight='weight', k=CONF.k_paths)
 
     def register_access_info(self, dpid, in_port, ip, mac):
         """
