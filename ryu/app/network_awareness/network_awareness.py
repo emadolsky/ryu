@@ -179,13 +179,6 @@ class NetworkAwareness(app_manager.RyuApp):
             interior_port = self.interior_ports[sw]
             self.access_ports[sw] = all_port_table - interior_port
 
-    # List the event list should be listened.
-    events = [event.EventSwitchEnter,
-              event.EventSwitchLeave, event.EventPortAdd,
-              event.EventPortDelete, event.EventPortModify,
-              event.EventLinkAdd, event.EventLinkDelete]
-
-    @set_ev_cls(events)
     def get_topology(self, ev):
         """
             Get topology info and calculate shortest paths.

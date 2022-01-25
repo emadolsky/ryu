@@ -77,7 +77,7 @@ class ExternalShortestPath():
                 k -= 1
             return shortest_paths
         except:
-            self.logger.debug("No path between %s and %s" % (src, dst))
+            print("No path between %s and %s" % (src, dst))
 
     def all_k_shortest_paths(self, graph):
         """
