@@ -28,14 +28,7 @@ Download files, and add them to ryu directory, for instance, app/network_awarene
 
 ### Make some changes
 
-To register parsing parameter, you NEED to add code into flags.py, which is in the topo directory of ryu project.
-
-    CONF.register_cli_opts([
-        # k_shortest_forwarding
-        cfg.IntOpt('k-paths', default=1, help='number for k shortest paths'),
-        cfg.StrOpt('weight', default='hop',
-                   help='weight type of computing shortest path.')])
-
+These changes are already done in this repository. But in order to start from the official repo, you should do these manually.
 
 For using delay detector module, we should make some changes in topology/switches.py.
 
@@ -97,9 +90,11 @@ You have to reinstall Ryu, so that you can run the new code. In the top derector
 
 ### Start
 
+#### Start Ryu
+
 Go into the directory, and run applications. You are suggested to add arguments when starting Ryu. The example shows below.
 
-    ryu-manager shortest_forwarding.py --observe-links --k-paths=2  --weight=bw
+    ryu-manager shortest_forwarding.py --observe-links
 
 The last step is to set up a network and connect to Ryu.
 
@@ -108,3 +103,11 @@ If you need to show collected information, you can set the parameter in setting.
 Enjoy it! Good Luck!
 
 If you have any question, you can email me. Don't forget to STAR this repository!
+
+#### Start External App
+
+The external app calculating the shortest path and setting the found paths in the controller can easily run by:
+
+    python3 external_app.py --kpaths 1 --weight delay
+    
+You can also use `bw` and `hop` for the weight argument.
