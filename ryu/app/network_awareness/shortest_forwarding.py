@@ -76,19 +76,9 @@ class ShortestForwarding(app_manager.RyuApp):
         self.monitor = kwargs["network_monitor"]
         self.delay_detector = kwargs["network_delay_detector"]
         self.datapaths = {}
-        self.weight = self.WEIGHT_MODEL[CONF.weight]
         
         wsgi = kwargs['wsgi']
         wsgi.register(ShortestController, {'shortest_path_app': self})
-
-    def set_weight_mode(self, weight):
-        """
-            set weight mode of path calculating.
-        """
-        self.weight = weight
-        if self.weight == self.WEIGHT_MODEL['hop']:
-            self.awareness.get_shortest_paths(weight=self.weight)
-        return True
 
     @set_ev_cls(ofp_event.EventOFPStateChange,
                 [MAIN_DISPATCHER, DEAD_DISPATCHER])
@@ -229,7 +219,7 @@ class ShortestForwarding(app_manager.RyuApp):
         else:
             self.flood(msg)
 
-    def get_path(self, src, dst, weight):
+    def get_path(self, src, dst):
         """
             Get shortest path from network awareness module.
         """
@@ -340,7 +330,7 @@ class ShortestForwarding(app_manager.RyuApp):
             src_sw, dst_sw = result[0], result[1]
             if dst_sw:
                 # Path has already calculated, just get it.
-                path = self.get_path(src_sw, dst_sw, weight=self.weight)
+                path = self.get_path(src_sw, dst_sw)
                 self.logger.info("[PATH]%s<-->%s: %s" % (ip_src, ip_dst, path))
                 flow_info = (eth_type, ip_src, ip_dst, in_port)
                 # install flow entries to datapath along side the path.
